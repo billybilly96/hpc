@@ -202,7 +202,8 @@ __global__ void processGeneration( cell_t *ghost, cell_t *next, int B1, int B2, 
 /*
      c1 = ghost[(newWidth * (global_i + R) + global_j + R)];
      c2 = (neighbors >= cond[c1 * 2]) * (neighbors <= cond[c1 * 2 + 1]);
-*/     *MAP(next, width, global_i, global_j, R) =  index_cond;
+     *MAP(next, width, global_i, global_j, R) =  index_cond;
+*/
 }
 
 __host__ __device__ int countNeighbors( int i, int j, int R, cell_t *s_grid) {
