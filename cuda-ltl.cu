@@ -190,7 +190,7 @@ __global__ void processGeneration( cell_t *ghost, cell_t *next, int B1, int B2, 
 
 		index_cond = ghost[(newWidth*(global_i + R) + global_j + R)];
 		/* apply rules of the larger than life to cell (i, j) */
-
+/*
 		if (isCellDead(index_cond) && hasEnoughNeighborsToComeToLife(neighbors, B1, B2)) {
 			// makeCellAlive(global_i, global_j, width, R, next);
 			*MAP(next, width, global_i, global_j, R) = 1;			
@@ -202,11 +202,11 @@ __global__ void processGeneration( cell_t *ghost, cell_t *next, int B1, int B2, 
 			*MAP(next, width, global_i, global_j, R) = 0;
 		}
 	}
-/*
+
      c1 = ghost[(newWidth * (global_i + R) + global_j + R)];
-     c2 = (neighbors >= cond[c1 * 2]) * (neighbors <= cond[c1 * 2 + 1]);
-     *MAP(next, width, global_i, global_j, R) =  index_cond;
-*/
+*/     c2 = (neighbors >= cond[index_cond * 2]) * (neighbors <= cond[index_cond * 2 + 1]);
+     *MAP(next, width, global_i, global_j, R) =  c2;
+}
 }
 
 __host__ __device__ int countNeighbors( int i, int j, int R, cell_t *s_grid) {
