@@ -203,15 +203,14 @@ __global__ void processGeneration( cell_t *ghost, cell_t *next, int B1, int B2, 
 		}
 	}
 
-*/    // c2 = (neighbors >= cond[index_cond * 2]) * (neighbors <= cond[index_cond * 2 + 1]);
-	if(index_cond == 0 && (neighbors <= B2 && neighbors >= B1)) {
-		c2 = 1;
-	} else if(index_cond ==1 && (neighbors <= D2-1 && neighbors >= D1-1)) {
-		c2 = 1;
+*/ 
+	if(!index_cond && neighbors <= B2 && neighbors >= B1) {
+		*MAP(next, width, global_i, global_j, R) = 1;
+	} else if(index_cond && neighbors+1 <= D2 && neighbors+1 >= D1) {
+		*MAP(next, width, global_i, global_j, R) = 1;
 	} else {
-		c2 = 0;
+		*MAP(next, width, global_i, global_j, R) = 0;
 	}
-     	*MAP(next, width, global_i, global_j, R) = c2;
     }
 }
 
