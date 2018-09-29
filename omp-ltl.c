@@ -93,7 +93,7 @@ void read_ltl( bmap_t *ltl, FILE* f ) {
 void init_map( cell_t *ghost, cell_t *current, int width, int newWidth, int R ) {
 	int i,j;
 	
-	#pragma omp parallel for collapse(2) default(none) shared(width,newWidth,R,ghost,current) schedule(dynamic,width)
+	#pragma omp parallel for collapse(2) default(none) shared(width,newWidth,R,ghost,current) schedule(static,width)
 	for (i=0; i<width; i++) {
 		for (j=0; j<width; j++) {
 			ghost[(i + R)*newWidth + j + R] = current[i*width + j];
@@ -112,15 +112,19 @@ void fill_ghost_cells( cell_t *ghost, int width, int newWidth, int R ) {
 		#pragma omp for collapse(2)
 		for (i=0; i<R; i++) {
 			for (j=0; j<width; j++) {
-				ghost[newWidth*i + R + j] = ghost[newWidth*(width + i) + R + j];			        //top
-				ghost[newWidth*(newWidth - R + i) + R + j] = ghost[newWidth*(R + i) + R + j];	//bottom
+				/* fill top rows */
+				ghost[newWidth*i + R + j] = ghost[newWidth*(width + i) + R + j];
+				/* fill bottom rows */
+				ghost[newWidth*(newWidth - R + i) + R + j] = ghost[newWidth*(R + i) + R + j];
 			}
 		}
 		#pragma omp for collapse(2)
 		for (i=0-R; i<width+R; i++) {
 			for (j=0; j<R; j++) {
-				ghost[newWidth*(i + R) + newWidth - R + j] = ghost[newWidth*(i+R) + R + j];    //right
-				ghost[(i + R)*newWidth + j] = ghost[(i + R)*newWidth + width + j];			       //left
+				/* fill right columns */
+				ghost[newWidth*(i + R) + newWidth - R + j] = ghost[newWidth*(i+R) + R + j];
+				/* fill left columns */
+				ghost[(i + R)*newWidth + j] = ghost[(i + R)*newWidth + width + j];
 			}
 		}
 	}
@@ -136,7 +140,7 @@ void processGeneration( int newWidth, cell_t *ghost, int B1, int B2, int D1, int
 	
 	#pragma omp parallel default(none) private(i,j,neighbors) shared(newWidth,R,ghost,temp,B1,B2,D1,D2)
 	{
-		#pragma omp for collapse(2) schedule(dynamic,newWidth)     
+		#pragma omp for collapse(2) schedule(static,newWidth)     
 		for(i = 0; i < newWidth; i++) {
 			for(j = 0; j < newWidth; j++) {
 				neighbors = countNeighbors(i, j, R, newWidth, ghost);
@@ -150,7 +154,7 @@ void processGeneration( int newWidth, cell_t *ghost, int B1, int B2, int D1, int
 				}
 			}
 		}
-		#pragma omp for collapse(2) schedule(dynamic,newWidth) 
+		#pragma omp for collapse(2) schedule(static,newWidth) 
 		for(i = 0; i < newWidth; i++) {
 			for(j = 0; j < newWidth; j++) {
 				ghost[i*newWidth + j] = temp[i*newWidth + j];
@@ -245,9 +249,12 @@ void final_map( cell_t *ghost, cell_t *final, int width, int newWidth, int R ) {
 	}
 }
 
+
 /**
  * Count alive cells in final configuration.
+ * Used for testing purpose.
  */
+/*
 void count_total_alive_cells( cell_t *final, int width ) {
 	int i,j;
 	int tot = 0;
@@ -259,7 +266,7 @@ void count_total_alive_cells( cell_t *final, int width ) {
 	}
 	printf("Total Alive: %d\n", tot);
 }
-
+*/
 
 int main( int argc, char* argv[] ) {
 	int R, B1, B2, D1, D2, nsteps, width, newWidth;
@@ -300,10 +307,12 @@ int main( int argc, char* argv[] ) {
 					R, B1, B2, D1, D2, nsteps);				
 	width = cur.n;
 	newWidth = width + 2*R;
-	current = (cell_t*)malloc( width * width * sizeof(cell_t));
-	ghost = (cell_t*)malloc( newWidth * newWidth * sizeof(cell_t));
-	temp = (cell_t*)malloc( newWidth * newWidth * sizeof(cell_t));
-	final = (cell_t*)malloc( width * width * sizeof(cell_t));
+	const size_t size = width*width*sizeof(cell_t);
+	const size_t new_size = newWidth*newWidth*sizeof(cell_t);
+	current = (cell_t*)malloc(size);
+	ghost = (cell_t*)malloc(new_size);
+	temp = (cell_t*)malloc(new_size);
+	final = (cell_t*)malloc(size);
 	current = cur.bmap;  
 	out = fopen(outfile, "w");
 	tstart = omp_get_wtime();
