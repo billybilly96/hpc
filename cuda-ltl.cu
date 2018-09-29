@@ -34,7 +34,7 @@ void read_ltl( bmap_t *ltl, FILE* f );
 void init_map( cell_t *ghost, cell_t *current, int width, int newWidth, int R );
 void fill_ghosts_cell( cell_t *ghost, int width, int newWidth, int R );
 void processGeneration( int width, int newWidth, cell_t *ghost, int B1, int B2, int D1, int D2, int R, cell_t *temp );
-int countNeighbors( int row, int col, int R, int newWidth, cell_t *ghost );
+int countNeighbors( int row, int col, int R, cell_t *ghost );
 int isCellDead( int i, int j, int newWidth, cell_t *ghost );
 int hasEnoughNeighborsToComeToLife( int neighbors, int B1, int B2 );
 int hasEnoughNeighborsToSurvive( int neighbors, int D1, int D2 );
@@ -135,6 +135,7 @@ __global__ void fill_ghost_columns_cells( cell_t *ghost, int width, int R ){
   }
   if (x < R){
     *MAP(ghost, width, - R + x, width + y, R) = *MAP(ghost, width, - R + x, y, R);
+
     *MAP(ghost, width, - R + x, - R + y, R) = *MAP(ghost, width, - R + x, width - R + y, R);
   }
   if (x >= width - R){
@@ -177,7 +178,7 @@ __global__ void processGeneration( cell_t *ghost, cell_t *temp, int B1, int B2, 
 	if (global_i < width + R && global_j < width + R){
 		for(int i = local_i - R; i <= local_i + R; i++){
 			for(int j = local_j - R; j <= local_j + R ; j++){
-				neighbors = countNeighbors(i, j, R, newWidth, s_grid);
+				neighbors = countNeighbors(i, j, R, s_grid);
 			}
 		}
 		/* apply rules of the larger than life to cell (i, j) */
@@ -195,38 +196,44 @@ __global__ void processGeneration( cell_t *ghost, cell_t *temp, int B1, int B2, 
 	}
 }
 
+__host__ __device__ int countNeighbors( int i, int j, int R, cell_t *s_grid) {
+	int neighbors = 0;
+	if (s_grid[i*(BLKSIZE + 2*R) + j] == 1) neighbors++;
+	return neighbors;
+}
+
 /**
  * Check if cell is 0.
  */
-int isCellDead( int i, int j, int newWidth, cell_t *s_grid ) { 
+__host__ __device__ int isCellDead( int i, int j, int newWidth, cell_t *s_grid ) { 
 	return s_grid[i*newWidth + j] == 0;
 }
 
 /**
  * Check if a dead cell has enough neighbors to come to life. 
  */
-int hasEnoughNeighborsToComeToLife( int neighbors, int B1, int B2 ) { 
+__host__ __device__ int hasEnoughNeighborsToComeToLife( int neighbors, int B1, int B2 ) { 
 	return (neighbors <= B2 && neighbors >= B1);																								 
 }
 
 /** 
  * Check if an alive cell has enough neighbors to survive.
  */
-int hasEnoughNeighborsToSurvive( int neighbors, int D1, int D2 ) {
+__host__ __device__ int hasEnoughNeighborsToSurvive( int neighbors, int D1, int D2 ) {
 	return (neighbors <= D2-1 && neighbors >= D1-1);	
 }
 
 /** 
  * Make the cell alive.
  */
-void makeCellAlive( int i, int j, int newWidth, cell_t *temp ) { 
+__host__ __device__ void makeCellAlive( int i, int j, int newWidth, cell_t *temp ) { 
 	temp[i*newWidth + j] = 1; 
 }
 
 /**
  * Make the cell dead.
  */
-void makeCellDead( int i, int j, int newWidth, cell_t *temp ) {
+__host__ __device__ void makeCellDead( int i, int j, int newWidth, cell_t *temp ) {
 	temp[i*newWidth + j] = 0;
 }
 
@@ -252,13 +259,13 @@ void write_ltl( bmap_t *ltl, FILE *f ) {
 
 /**
  * Initialize the final grid having correct values (without ghost cells).
- */
-__host__ void final_map( cell_t *ghost, cell_t *final, int width, int newWidth, int R ) {
+ *//*
+void final_map( cell_t *ghost, cell_t *final, int width, int newWidth, int R ) {
 	int id = threadIdx.x + blockIdx.x * blockDim.x;
 	if(id<newWidth-R) {
 		final[id] = ghost[(blockIdx.x + R)*blockIdx.x + threadIdx.x + R];
 	}
-}
+}*/
 
 
 
@@ -354,8 +361,8 @@ int main( int argc, char* argv[] ) {
 		processGeneration<<<grid, block, (BLKSIZE + 2*R)*(BLKSIZE + 2*R)*sizeof(cell_t)>>>(d_ghost, d_temp, B1, B2, D1, D2, width, newWidth, R);
 		cudaDeviceSynchronize();
 	}
-	final_map<<<grid,block>>>(d_ghost, d_final, width, newWidth, R);
-  	cudaDeviceSynchronize(); /* wait for kernel to finish */
+/*	final_map(d_ghost, d_final, width, newWidth, R);
+  	cudaDeviceSynchronize();*/ /* wait for kernel to finish */
 	tstop = hpc_gettime();
 	printf("Elapsed time %f\n", tstop - tstart);	
 	cudaError_t error = cudaGetLastError();
