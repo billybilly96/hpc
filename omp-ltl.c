@@ -195,7 +195,7 @@ int hasEnoughNeighborsToComeToLife( int neighbors, int B1, int B2 ) {
  * Check if an alive cell has enough neighbors to survive.
  */
 int hasEnoughNeighborsToSurvive( int neighbors, int D1, int D2 ) {
-	return (neighbors <= D2-1 && neighbors >= D1-1);	
+	return (neighbors+1 <= D2 && neighbors+1 >= D1);	
 }
 
 /** 
