@@ -22,7 +22,10 @@ cell_t *IDX( cell_t *bmap, int n, int i, int j ) {
 	return bmap + i*n + j;
 }
 
-/* Returns a pointer to the cell of coordinates (i+R,j+R). */
+/**
+ * Returns a pointer to the cell of coordinates (i+R,j+R).
+ * This function is usefull for mapping better the indexes.
+ */
 __device__ __host__ cell_t* MAP(cell_t *bmap, int width, int i, int j, int R){
 	return bmap + (i+R)*(width + 2*R) + j + R;
 }
@@ -96,7 +99,7 @@ void read_ltl( bmap_t *ltl, FILE* f ) {
 /**
  * Initialize new grid having empty ghost cells.
  */
-void init_map( cell_t *ghost, cell_t *current, int width, int newWidth, int R, int n ) {
+void init_map( cell_t *ghost, cell_t *current, int width, int newWidth, int R ) {
 	int i,j;
 	
 	for (i=0; i<width; i++) {
@@ -114,8 +117,8 @@ __global__ void fill_ghost_rows_cells( cell_t *ghost, int width, int R ) {
 	const int y = threadIdx.y;
 	
 	if (x < width){
-		*MAP(ghost, width, width + y, x, R) = *MAP(ghost, width, 0 + y, x, R);
-		*MAP(ghost, width, 0 - R + y, x, R) = *MAP(ghost, width, width - R + y, x, R);
+		*MAP(ghost, width, width + y, x, R) = *MAP(ghost, width, y, x, R);
+		*MAP(ghost, width, - R + y, x, R) = *MAP(ghost, width, width - R + y, x, R);
 	}
 }
 
@@ -127,16 +130,16 @@ __global__ void fill_ghost_columns_cells( cell_t *ghost, int width, int R ){
   int y = threadIdx.y;
 	
   if (x < width){
-    *MAP(ghost, width, x, width + y, R) = *MAP(ghost, width, x, 0 + y, R);
-    *MAP(ghost, width, x, 0 - R + y, R) = *MAP(ghost, width, x, width - R + y, R);
+    *MAP(ghost, width, x, width + y, R) = *MAP(ghost, width, x, y, R);
+    *MAP(ghost, width, x, - R + y, R) = *MAP(ghost, width, x, width - R + y, R);
   }
   if (x < R){
-    *MAP(ghost, width, 0 - R + x, width + y, R) = *MAP(ghost, width, 0 - R + x, 0 + y, R);
-    *MAP(ghost, width, 0 - R + x, 0 - R + y, R) = *MAP(ghost, width, 0 - R + x, width - R + y, R);
+    *MAP(ghost, width, - R + x, width + y, R) = *MAP(ghost, width, - R + x, y, R);
+    *MAP(ghost, width, - R + x, - R + y, R) = *MAP(ghost, width, - R + x, width - R + y, R);
   }
   if (x >= width - R){
-    *MAP(ghost, width, x + R, width + y, R) = *MAP(ghost, width, x + R, 0 + y, R);
-		*MAP(ghost, width, x + R, 0 - R + y, R) = *MAP(ghost, width, x + R, width - R + y,  R);
+    *MAP(ghost, width, x + R, width + y, R) = *MAP(ghost, width, x + R, y, R);
+    *MAP(ghost, width, x + R, - R + y, R) = *MAP(ghost, width, x + R, width - R + y,  R);
   }
 }
 
@@ -144,7 +147,7 @@ __global__ void fill_ghost_columns_cells( cell_t *ghost, int width, int R ){
  * Compute the next grid given the current configuration.
  * Updates are written to a temporary grid and then rewrite into original grid.
  */
-__global__ void processGeneration( int width, int newWidth, cell_t *ghost, int B1, int B2, int D1, int D2, int R, cell_t *temp ) {
+__global__ void processGeneration( cell_t *ghost, cell_t *temp, int B1, int B2, int D1, int D2, int width, int newWidth, int R ) {
 	int global_i, global_j, local_i, local_j, neighbors = 0;	
 	// Declare the shared memory on a per block level
 	extern __shared__ cell_t s_grid[];
@@ -261,8 +264,8 @@ __host__ void final_map( cell_t *ghost, cell_t *final, int width, int newWidth, 
 
 int main( int argc, char* argv[] ) {
 	int R, B1, B2, D1, D2, nsteps, width, newWidth;
+	int inc = 0;
 	int i;
-	int inc;
 	const char *infile, *outfile;
 	FILE *in, *out;
 	bmap_t cur;
@@ -338,21 +341,21 @@ int main( int argc, char* argv[] ) {
 	
 	init_map(ghost, current, width, newWidth, R);
 	/* Copy input to device */
-	cudaMemcpy(d_current, &current, size, cudaMemcpyHostToDevice);
-	cudaMemcpy(d_ghost, &ghost, new_size, cudaMemcpyHostToDevice);
-	cudaMemcpy(d_temp, &temp, new_size, cudaMemcpyHostToDevice);
-	cudaMemcpy(d_final, &final, size, cudaMemcpyHostToDevice);
+	cudaMemcpy(d_current, current, size, cudaMemcpyHostToDevice);
+	cudaMemcpy(d_ghost, ghost, new_size, cudaMemcpyHostToDevice);
+	cudaMemcpy(d_temp, temp, new_size, cudaMemcpyHostToDevice);
+	cudaMemcpy(d_final, final, size, cudaMemcpyHostToDevice);
     
 	tstart = hpc_gettime();
     
 	for (i = 0; i<nsteps; i++) {
 		fill_ghost_rows_cells<<<copyGrid, copyBlock>>>(d_ghost, width, R);
     		fill_ghost_columns_cells<<<copyGrid, copyBlock>>>(d_ghost, width, R);
-		processGeneration<<<grid, block, (BLKSIZE + 2 * R)*(BLKSIZE + 2 * R)*sizeof(cell_t)>>>(width, newWidth, d_ghost, B1, B2, D1, D2, R, d_temp);
+		processGeneration<<<grid, block, (BLKSIZE + 2*R)*(BLKSIZE + 2*R)*sizeof(cell_t)>>>(d_ghost, d_temp, B1, B2, D1, D2, width, newWidth, R);
 		cudaDeviceSynchronize();
 	}
-  final_map<<<grid,block>>>(d_ghost, d_final, width, newWidth, R);
-  cudaDeviceSynchronize(); /* wait for kernel to finish */
+	final_map<<<grid,block>>>(d_ghost, d_final, width, newWidth, R);
+  	cudaDeviceSynchronize(); /* wait for kernel to finish */
 	tstop = hpc_gettime();
 	printf("Elapsed time %f\n", tstop - tstart);	
 	cudaError_t error = cudaGetLastError();
