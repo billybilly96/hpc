@@ -182,13 +182,15 @@ __global__ void processGeneration( cell_t *ghost, cell_t *next, int B1, int B2, 
 	if (global_i < width + R && global_j < width + R){
 		for(int i = local_i - R; i <= local_i + R; i++){
 			for(int j = local_j - R; j <= local_j + R ; j++){
-				neighbors = countNeighbors(i, j, R, s_grid);
+				if(s_grid[i*(BLKSIZE + 2*R) + j] == 1) {
+					neighbors++;
+				}
 			}
 		}
-/*
-		index_cond = ghost[(newWidth*(global_i + R) + global_j + R)];*/
+
+		index_cond = ghost[(newWidth*(global_i + R) + global_j + R)];
 		/* apply rules of the larger than life to cell (i, j) */
-/*
+
 		if (isCellDead(index_cond) && hasEnoughNeighborsToComeToLife(neighbors, B1, B2)) {
 			makeCellAlive(global_i, global_j, width, R, next);			
 		} else if (!isCellDead(index_cond) && hasEnoughNeighborsToSurvive(neighbors, D1, D2)) {
@@ -197,7 +199,7 @@ __global__ void processGeneration( cell_t *ghost, cell_t *next, int B1, int B2, 
 			makeCellDead(global_i, global_j, width, R, next);
 		}
 	}
-*/
+
 /*if(global_i < width + R && global_j < width + R){
 	 for(int i = local_i - R; i <= local_i + R; i++){
         for(int j = local_j - R; j <= local_j + R ; j++){
@@ -205,11 +207,11 @@ __global__ void processGeneration( cell_t *ghost, cell_t *next, int B1, int B2, 
             neighbors++;
           }
         }
-     }*/
+     }
      c1 = ghost[(newWidth * (global_i + R) + global_j + R)];
      c2 = (neighbors >= cond[c1 * 2]) * (neighbors <= cond[c1 * 2 + 1]);
      *MAP(next, width, global_i, global_j, R) =  c2;
-   }
+   }*/
 }
 
 __host__ __device__ int countNeighbors( int i, int j, int R, cell_t *s_grid) {
