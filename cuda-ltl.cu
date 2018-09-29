@@ -5,6 +5,8 @@
 #include <assert.h>
 #include <ctype.h> /* for isdigit */
 
+#define BLKSIZE 32
+
 typedef unsigned char cell_t;
 
 /* This struct is defined here as an example; it is possible to modify
@@ -28,7 +30,7 @@ __device__ __host__ cell_t* MAP(cell_t *bmap, int width, int i, int j, int R){
 void read_ltl( bmap_t *ltl, FILE* f );
 void init_map( cell_t *ghost, cell_t *current, int width, int newWidth, int R );
 void fill_ghosts_cell( cell_t *ghost, int width, int newWidth, int R );
-void processGeneration( int newWidth, cell_t *ghost, int B1, int B2, int D1, int D2, int R, cell_t *temp );
+void processGeneration( int width, int newWidth, cell_t *ghost, int B1, int B2, int D1, int D2, int R, cell_t *temp );
 int countNeighbors( int row, int col, int R, int newWidth, cell_t *ghost );
 int isCellDead( int i, int j, int newWidth, cell_t *ghost );
 int hasEnoughNeighborsToComeToLife( int neighbors, int B1, int B2 );
@@ -38,7 +40,6 @@ void makeCellDead( int i, int j, int newWidth, cell_t *temp );
 void write_ltl( bmap_t *ltl, FILE *f );
 void final_map( cell_t *ghost, cell_t *final, int width, int newWidth, int R ); 
 
-
 /**
  * Read a PBM file from file f. The caller is responsible for passing
  * a pointer f to a file opened for reading. This function is not very
@@ -47,7 +48,7 @@ void final_map( cell_t *ghost, cell_t *final, int width, int newWidth, int R );
  * PBM images produced by Gimp (you must save them in "ASCII format"
  * when prompted).
  */
-__global__ void read_ltl( bmap_t *ltl, FILE* f ) {
+void read_ltl( bmap_t *ltl, FILE* f ) {
 	char buf[2048]; 
 	char *s; 
 	int n, i, j;
@@ -144,7 +145,7 @@ __global__ void fill_ghost_columns_cells( cell_t *ghost, int width, int R ){
  * Updates are written to a temporary grid and then rewrite into original grid.
  */
 __global__ void processGeneration( int width, int newWidth, cell_t *ghost, int B1, int B2, int D1, int D2, int R, cell_t *temp ) {
-	int gi, gj, li, lj, neighbors = 0;	
+	int global_i, global_j, local_i, local_j, neighbors = 0;	
 	// Declare the shared memory on a per block level
 	extern __shared__ cell_t s_grid[];
 
@@ -171,7 +172,6 @@ __global__ void processGeneration( int width, int newWidth, cell_t *ghost, int B
 	}
 	__syncthreads();
 	if (global_i < width + R && global_j < width + R){
-		neighbors = countNeighbors(i, j, R, newWidth, shared_grid);
 		for(int i = local_i - R; i <= local_i + R; i++){
 			for(int j = local_j - R; j <= local_j + R ; j++){
 				neighbors = countNeighbors(i, j, R, newWidth, s_grid);
@@ -195,35 +195,35 @@ __global__ void processGeneration( int width, int newWidth, cell_t *ghost, int B
 /**
  * Check if cell is 0.
  */
-__device__ int isCellDead( int i, int j, int newWidth, cell_t *s_grid ) { 
+int isCellDead( int i, int j, int newWidth, cell_t *s_grid ) { 
 	return s_grid[i*newWidth + j] == 0;
 }
 
 /**
  * Check if a dead cell has enough neighbors to come to life. 
  */
-__device__ int hasEnoughNeighborsToComeToLife( int neighbors, int B1, int B2 ) { 
+int hasEnoughNeighborsToComeToLife( int neighbors, int B1, int B2 ) { 
 	return (neighbors <= B2 && neighbors >= B1);																								 
 }
 
 /** 
  * Check if an alive cell has enough neighbors to survive.
  */
-__device__ int hasEnoughNeighborsToSurvive( int neighbors, int D1, int D2 ) {
+int hasEnoughNeighborsToSurvive( int neighbors, int D1, int D2 ) {
 	return (neighbors <= D2-1 && neighbors >= D1-1);	
 }
 
 /** 
  * Make the cell alive.
  */
-__device__ void makeCellAlive( int i, int j, int newWidth, cell_t *temp ) { 
+void makeCellAlive( int i, int j, int newWidth, cell_t *temp ) { 
 	temp[i*newWidth + j] = 1; 
 }
 
 /**
  * Make the cell dead.
  */
-__device__ void makeCellDead( int i, int j, int newWidth, cell_t *temp ) {
+void makeCellDead( int i, int j, int newWidth, cell_t *temp ) {
 	temp[i*newWidth + j] = 0;
 }
 
@@ -232,7 +232,7 @@ __device__ void makeCellDead( int i, int j, int newWidth, cell_t *temp ) {
  * file f in PBM format. The caller is responsible for passing a
  * pointer f to a file opened for writing
  */
-__global__ void write_ltl( bmap_t *ltl, FILE *f ) {
+void write_ltl( bmap_t *ltl, FILE *f ) {
 	int i, j;
 	const int n = ltl->n;
 	
@@ -250,8 +250,7 @@ __global__ void write_ltl( bmap_t *ltl, FILE *f ) {
 /**
  * Initialize the final grid having correct values (without ghost cells).
  */
-__global__ void final_map( cell_t *ghost, cell_t *final, int width, int newWidth, int R ) {
-	int i,j;
+__host__ void final_map( cell_t *ghost, cell_t *final, int width, int newWidth, int R ) {
 	int id = threadIdx.x + blockIdx.x * blockDim.x;
 	if(id<newWidth-R) {
 		final[id] = ghost[(blockIdx.x + R)*blockIdx.x + threadIdx.x + R];
@@ -259,7 +258,6 @@ __global__ void final_map( cell_t *ghost, cell_t *final, int width, int newWidth
 }
 
 
-#define BLKSIZE 32
 
 int main( int argc, char* argv[] ) {
 	int R, B1, B2, D1, D2, nsteps, width, newWidth;
@@ -317,7 +315,7 @@ int main( int argc, char* argv[] ) {
 	const size_t new_size = newWidth*newWidth*sizeof(cell_t);
 	inc = (width % BLKSIZE) > 0 ? 1 : 0;
 
-	current = (cell_t*)malloc(size));
+	current = (cell_t*)malloc(size);
 	ghost = (cell_t*)malloc(new_size);
 	temp = (cell_t*)malloc(new_size);
 	final = (cell_t*)malloc(size);
@@ -349,8 +347,8 @@ int main( int argc, char* argv[] ) {
     
 	for (i = 0; i<nsteps; i++) {
 		fill_ghost_rows_cells<<<copyGrid, copyBlock>>>(d_ghost, width, R);
-    fill_ghost_columns_cells<<<copyGrid, copyBlock>>>(d_cur_ghost, width, R);
-		processGeneration<<<grid, block, (BLKSIZE + 2 * R)*(BLKSIZE + 2 * R)*sizeof(cell_t)>>>(newWidth, d_ghost, B1, B2, D1, D2, R, d_temp);
+    		fill_ghost_columns_cells<<<copyGrid, copyBlock>>>(d_ghost, width, R);
+		processGeneration<<<grid, block, (BLKSIZE + 2 * R)*(BLKSIZE + 2 * R)*sizeof(cell_t)>>>(width, newWidth, d_ghost, B1, B2, D1, D2, R, d_temp);
 		cudaDeviceSynchronize();
 	}
   final_map<<<grid,block>>>(d_ghost, d_final, width, newWidth, R);
