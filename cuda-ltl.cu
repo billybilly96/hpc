@@ -316,14 +316,13 @@ int main( int argc, char* argv[] ) {
 	width = cur.n;
 	newWidth = width + 2*R;
 
-	const size_t size = width*width*sizeof(cell_t);
 	const size_t new_size = newWidth*newWidth*sizeof(cell_t);
 	inc = (width % BLKSIZE) > 0 ? 1 : 0;
 
 	ghost = (cell_t*)malloc(new_size);
 	
 	/* Allocate space for device copies of current, ghost, temp, final */
-	cudaMalloc((void **)&d_ghost, size);
+	cudaMalloc((void **)&d_ghost, new_size);
 	cudaMalloc((void **)&d_next, new_size); 
 	
 	dim3 block(BLKSIZE, BLKSIZE);
