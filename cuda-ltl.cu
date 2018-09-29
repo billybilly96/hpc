@@ -192,11 +192,14 @@ __global__ void processGeneration( cell_t *ghost, cell_t *next, int B1, int B2, 
 		/* apply rules of the larger than life to cell (i, j) */
 
 		if (isCellDead(index_cond) && hasEnoughNeighborsToComeToLife(neighbors, B1, B2)) {
-			makeCellAlive(global_i, global_j, width, R, next);			
+			// makeCellAlive(global_i, global_j, width, R, next);
+			*MAP(next, width, global_i, global_j, R) = 1;			
 		} else if (!isCellDead(index_cond) && hasEnoughNeighborsToSurvive(neighbors, D1, D2)) {
-			makeCellAlive(global_i, global_j, width, R, next);
+			// makeCellAlive(global_i, global_j, width, R, next);
+			*MAP(next, width, global_i, global_j, R) = 1;
 		} else {
-			makeCellDead(global_i, global_j, width, R, next);
+			// makeCellDead(global_i, global_j, width, R, next);
+			*MAP(next, width, global_i, global_j, R) = 0;
 		}
 	}
 /*
