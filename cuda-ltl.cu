@@ -178,13 +178,14 @@ __global__ void processGeneration( cell_t *ghost, cell_t *next, int B1, int B2, 
 		}
 	}
 	__syncthreads();
-/*
+
 	if (global_i < width + R && global_j < width + R){
 		for(int i = local_i - R; i <= local_i + R; i++){
 			for(int j = local_j - R; j <= local_j + R ; j++){
 				neighbors = countNeighbors(i, j, R, s_grid);
 			}
 		}
+/*
 		index_cond = ghost[(newWidth*(global_i + R) + global_j + R)];*/
 		/* apply rules of the larger than life to cell (i, j) */
 /*
@@ -197,14 +198,14 @@ __global__ void processGeneration( cell_t *ghost, cell_t *next, int B1, int B2, 
 		}
 	}
 */
-if(global_i < width + R && global_j < width + R){
+/*if(global_i < width + R && global_j < width + R){
 	 for(int i = local_i - R; i <= local_i + R; i++){
         for(int j = local_j - R; j <= local_j + R ; j++){
           if(s_grid[i * (BLKSIZE + 2 * R) + j] == 1){
             neighbors++;
           }
         }
-     }
+     }*/
      c1 = ghost[(newWidth * (global_i + R) + global_j + R)];
      c2 = (neighbors >= cond[c1 * 2]) * (neighbors <= cond[c1 * 2 + 1]);
      *MAP(next, width, global_i, global_j, R) =  c2;
