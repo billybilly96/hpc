@@ -22,10 +22,7 @@ cell_t *IDX( cell_t *bmap, int n, int i, int j ) {
 	return bmap + i*n + j;
 }
 
-/**
- * Returns a pointer to the cell of coordinates (i+R,j+R).
- * This function is usefull for mapping better the indexes.
- */
+/* Returns a pointer to the cell of coordinates (i+R,j+R). */
 __device__ __host__ cell_t* MAP(cell_t *bmap, int width, int i, int j, int R){
 	return bmap + (i+R)*(width + 2*R) + j + R;
 }
@@ -33,14 +30,16 @@ __device__ __host__ cell_t* MAP(cell_t *bmap, int width, int i, int j, int R){
 void read_ltl( bmap_t *ltl, FILE* f );
 void init_map( cell_t *ghost, cell_t *current, int width, int newWidth, int R );
 void fill_ghosts_cell( cell_t *ghost, int width, int newWidth, int R );
-void processGeneration( int width, int newWidth, cell_t *ghost, int B1, int B2, int D1, int D2, int R, cell_t *temp );
-int countNeighbors( int i, int j, int R, cell_t *s_grid );
-int isCellDead( int index_cond );
+void processGeneration( int newWidth, cell_t *ghost, int B1, int B2, int D1, int D2, int R, cell_t *temp );
+int countNeighbors( int row, int col, int R, int newWidth, cell_t *ghost );
+int isCellDead( int i, int j, int newWidth, cell_t *ghost );
 int hasEnoughNeighborsToComeToLife( int neighbors, int B1, int B2 );
 int hasEnoughNeighborsToSurvive( int neighbors, int D1, int D2 );
-void makeCellAlive( int i, int j, int width, int R, cell_t *next );
-void makeCellDead( int i, int j, int width, int R, cell_t *next );
-void write_ltl( bmap_t *ltl, FILE *f ); 
+void makeCellAlive( int i, int j, int newWidth, cell_t *temp );
+void makeCellDead( int i, int j, int newWidth, cell_t *temp );
+void write_ltl( bmap_t *ltl, FILE *f );
+void final_map( cell_t *ghost, cell_t *final, int width, int newWidth, int R ); 
+
 
 /**
  * Read a PBM file from file f. The caller is responsible for passing
@@ -98,7 +97,7 @@ void read_ltl( bmap_t *ltl, FILE* f ) {
 /**
  * Initialize new grid having empty ghost cells.
  */
-void init_map( cell_t *ghost, cell_t *current, int width, int newWidth, int R ) {
+void init_map( cell_t *ghost, cell_t *current, int width, int newWidth, int R, int n ) {
 	int i,j;
 	
 	for (i=0; i<width; i++) {
@@ -116,8 +115,8 @@ __global__ void fill_ghost_rows_cells( cell_t *ghost, int width, int R ) {
 	const int y = threadIdx.y;
 	
 	if (x < width){
-		*MAP(ghost, width, width + y, x, R) = *MAP(ghost, width, y, x, R);
-		*MAP(ghost, width, - R + y, x, R) = *MAP(ghost, width, width - R + y, x, R);
+		*MAP(ghost, width, width + y, x, R) = *MAP(ghost, width, 0 + y, x, R);
+		*MAP(ghost, width, 0 - R + y, x, R) = *MAP(ghost, width, width - R + y, x, R);
 	}
 }
 
@@ -129,17 +128,16 @@ __global__ void fill_ghost_columns_cells( cell_t *ghost, int width, int R ){
   int y = threadIdx.y;
 	
   if (x < width){
-    *MAP(ghost, width, x, width + y, R) = *MAP(ghost, width, x, y, R);
-    *MAP(ghost, width, x, - R + y, R) = *MAP(ghost, width, x, width - R + y, R);
+    *MAP(ghost, width, x, width + y, R) = *MAP(ghost, width, x, 0 + y, R);
+    *MAP(ghost, width, x, 0 - R + y, R) = *MAP(ghost, width, x, width - R + y, R);
   }
   if (x < R){
-    *MAP(ghost, width, - R + x, width + y, R) = *MAP(ghost, width, - R + x, y, R);
-
-    *MAP(ghost, width, - R + x, - R + y, R) = *MAP(ghost, width, - R + x, width - R + y, R);
+    *MAP(ghost, width, 0 - R + x, width + y, R) = *MAP(ghost, width, 0 - R + x, 0 + y, R);
+    *MAP(ghost, width, 0 - R + x, 0 - R + y, R) = *MAP(ghost, width, 0 - R + x, width - R + y, R);
   }
   if (x >= width - R){
-    *MAP(ghost, width, x + R, width + y, R) = *MAP(ghost, width, x + R, y, R);
-    *MAP(ghost, width, x + R, - R + y, R) = *MAP(ghost, width, x + R, width - R + y,  R);
+    *MAP(ghost, width, x + R, width + y, R) = *MAP(ghost, width, x + R, 0 + y, R);
+		*MAP(ghost, width, x + R, 0 - R + y, R) = *MAP(ghost, width, x + R, width - R + y,  R);
   }
 }
 
@@ -147,9 +145,8 @@ __global__ void fill_ghost_columns_cells( cell_t *ghost, int width, int R ){
  * Compute the next grid given the current configuration.
  * Updates are written to a temporary grid and then rewrite into original grid.
  */
-__global__ void processGeneration( cell_t *ghost, cell_t *next, int B1, int B2, int D1, int D2, int width, int newWidth, int R ) {
-	int global_i, global_j, local_i, local_j, neighbors = 0;
-	int index_cond;	
+__global__ void processGeneration( int width, int newWidth, cell_t *ghost, int B1, int B2, int D1, int D2, int R, cell_t *temp ) {
+	int global_i, global_j, local_i, local_j, neighbors = 0;	
 	// Declare the shared memory on a per block level
 	extern __shared__ cell_t s_grid[];
 
@@ -178,60 +175,57 @@ __global__ void processGeneration( cell_t *ghost, cell_t *next, int B1, int B2, 
 	if (global_i < width + R && global_j < width + R){
 		for(int i = local_i - R; i <= local_i + R; i++){
 			for(int j = local_j - R; j <= local_j + R ; j++){
-				neighbors = countNeighbors(i, j, R, s_grid);
+				neighbors = countNeighbors(i, j, R, newWidth, s_grid);
 			}
 		}
-		index_cond = ghost[(newWidth*(global_i + R) + global_j + R)];
 		/* apply rules of the larger than life to cell (i, j) */
-		if (isCellDead(index_cond) && hasEnoughNeighborsToComeToLife(neighbors, B1, B2)) {
-			makeCellAlive(global_i, global_j, width, R, next);			
-		} else if (!isCellDead(index_cond) && hasEnoughNeighborsToSurvive(neighbors, D1, D2)) {
-			makeCellAlive(global_i, global_j, width, R, next);
+		if (isCellDead(global_i, global_j, newWidth, s_grid) && hasEnoughNeighborsToComeToLife(neighbors, B1, B2)) {
+			makeCellAlive(global_i, global_j, newWidth, temp);			
+		} else if (!isCellDead(global_i, global_j, newWidth, s_grid) && hasEnoughNeighborsToSurvive(neighbors, D1, D2)) {
+			makeCellAlive(global_i, global_j, newWidth, temp);
 		} else {
-			makeCellDead(global_i, global_j, width, R, next);
+			makeCellDead(global_i, global_j, newWidth, temp);
 		}
 	}
-}
-
-__host__ __device__ int countNeighbors( int i, int j, int R, cell_t *s_grid) {
-	int neighbors = 0;
-	if (s_grid[i*(BLKSIZE + 2*R) + j] == 1) neighbors++;
-	return neighbors;
+	__syncthreads();	
+	if (global_i < newWidth && global_j < newWidth) {
+		ghost[global_i*newWidth + global_j] = s_grid[global_i*newWidth + global_j];
+	}
 }
 
 /**
  * Check if cell is 0.
  */
-__host__ __device__ int isCellDead(int index_cond) { 
-	return index_cond == 0;
+__device__ int isCellDead( int i, int j, int newWidth, cell_t *s_grid ) { 
+	return s_grid[i*newWidth + j] == 0;
 }
 
 /**
  * Check if a dead cell has enough neighbors to come to life. 
  */
-__host__ __device__ int hasEnoughNeighborsToComeToLife( int neighbors, int B1, int B2 ) { 
+__device__ int hasEnoughNeighborsToComeToLife( int neighbors, int B1, int B2 ) { 
 	return (neighbors <= B2 && neighbors >= B1);																								 
 }
 
 /** 
  * Check if an alive cell has enough neighbors to survive.
  */
-__host__ __device__ int hasEnoughNeighborsToSurvive( int neighbors, int D1, int D2 ) {
+__device__ int hasEnoughNeighborsToSurvive( int neighbors, int D1, int D2 ) {
 	return (neighbors <= D2-1 && neighbors >= D1-1);	
 }
 
 /** 
  * Make the cell alive.
  */
-__host__ __device__ void makeCellAlive( int i, int j, int width, int R, cell_t *next ) { 
-	*MAP(next, width, i, j, R) = 1; 
+__device__ void makeCellAlive( int i, int j, int newWidth, cell_t *temp ) { 
+	temp[i*newWidth + j] = 1; 
 }
 
 /**
  * Make the cell dead.
  */
-__host__ __device__ void makeCellDead( int i, int j, int width, int R, cell_t *next ) {
-	*MAP(next, width, i, j, R) = 0;
+__device__ void makeCellDead( int i, int j, int newWidth, cell_t *temp ) {
+	temp[i*newWidth + j] = 0;
 }
 
 /**
@@ -257,31 +251,33 @@ void write_ltl( bmap_t *ltl, FILE *f ) {
 /**
  * Initialize the final grid having correct values (without ghost cells).
  */
-/*
-void final_map( cell_t *ghost, cell_t *final, int width, int newWidth, int R ) {
+__global__ void final_map( cell_t *ghost, cell_t *final, int width, int newWidth, int R ) 
 	int id = threadIdx.x + blockIdx.x * blockDim.x;
 	if(id<newWidth-R) {
 		final[id] = ghost[(blockIdx.x + R)*blockIdx.x + threadIdx.x + R];
 	}
 }
-*/
 
 
 
 int main( int argc, char* argv[] ) {
 	int R, B1, B2, D1, D2, nsteps, width, newWidth;
-	int inc = 0;
 	int i;
+	int inc;
 	const char *infile, *outfile;
 	FILE *in, *out;
 	bmap_t cur;
 	double tstart, tstop;	
 	
+	cell_t *current;
 	cell_t *ghost;
+	cell_t *temp;
+	cell_t *final;
 	
+	cell_t *d_current;
 	cell_t *d_ghost;
-	cell_t *d_next;
 	cell_t *d_temp;
+	cell_t *d_final;
 	
 	if ( argc != 9 ) {
 		fprintf(stderr, "Usage: %s R B1 B2 D1 D2 nsteps infile outfile\n", argv[0]);
@@ -320,11 +316,19 @@ int main( int argc, char* argv[] ) {
 	const size_t new_size = newWidth*newWidth*sizeof(cell_t);
 	inc = (width % BLKSIZE) > 0 ? 1 : 0;
 
+	current = (cell_t*)malloc(size));
 	ghost = (cell_t*)malloc(new_size);
+	temp = (cell_t*)malloc(new_size);
+	final = (cell_t*)malloc(size);
 	
 	/* Allocate space for device copies of current, ghost, temp, final */
-	cudaMalloc((void **)&d_ghost, size);
-	cudaMalloc((void **)&d_next, new_size); 
+	cudaMalloc((void **)&d_current, size);
+	cudaMalloc((void **)&d_ghost, new_size);
+	cudaMalloc((void **)&d_temp, new_size);
+	cudaMalloc((void **)&d_final, size);
+ 
+	/* Setup input value */
+	current = cur.bmap; 
 	
 	dim3 block(BLKSIZE, BLKSIZE);
 	dim3 grid(width/BLKSIZE + inc, width/BLKSIZE + inc);
@@ -333,40 +337,42 @@ int main( int argc, char* argv[] ) {
 
 	out = fopen(outfile, "w");
 	
-	init_map(ghost, cur.bmap, width, newWidth, R);
+	init_map(ghost, current, width, newWidth, R);
 	/* Copy input to device */
-	cudaMemcpy(d_ghost, ghost, new_size, cudaMemcpyHostToDevice);
+	cudaMemcpy(d_current, &current, size, cudaMemcpyHostToDevice);
+	cudaMemcpy(d_ghost, &ghost, new_size, cudaMemcpyHostToDevice);
+	cudaMemcpy(d_temp, &temp, new_size, cudaMemcpyHostToDevice);
+	cudaMemcpy(d_final, &final, size, cudaMemcpyHostToDevice);
     
 	tstart = hpc_gettime();
     
 	for (i = 0; i<nsteps; i++) {
 		fill_ghost_rows_cells<<<copyGrid, copyBlock>>>(d_ghost, width, R);
-    		fill_ghost_columns_cells<<<copyGrid, copyBlock>>>(d_ghost, width, R);		
-		processGeneration<<<grid, block, (BLKSIZE + 2*R)*(BLKSIZE + 2*R)*sizeof(cell_t)>>>(d_ghost, d_next, B1, B2, D1, D2, width, newWidth, R);		
+    fill_ghost_columns_cells<<<copyGrid, copyBlock>>>(d_cur_ghost, width, R);
+		processGeneration<<<grid, block, (BLKSIZE + 2 * R)*(BLKSIZE + 2 * R)*sizeof(cell_t)>>>(newWidth, d_ghost, B1, B2, D1, D2, R, d_temp);
 		cudaDeviceSynchronize();
-		cudaMemcpy(ghost, d_next, new_size, cudaMemcpyDeviceToHost);
-		d_temp = d_ghost;
-		d_ghost = d_next;
-		d_next = d_temp;
 	}
-  	cudaDeviceSynchronize();/* wait for kernel to finish */
+  final_map<<<grid,block>>>(d_ghost, d_final, width, newWidth, R);
+  cudaDeviceSynchronize(); /* wait for kernel to finish */
 	tstop = hpc_gettime();
 	printf("Elapsed time %f\n", tstop - tstart);	
-	/* cudaError_t error = cudaGetLastError();
+	cudaError_t error = cudaGetLastError();
 	if(error != cudaSuccess)
-		printf("CUDA error %s\n",cudaGetErrorString(error));*/
+		printf("CUDA error %s\n",cudaGetErrorString(error));
 	// Copy back results
-	cudaMemcpy(ghost, d_ghost, new_size, cudaMemcpyDeviceToHost);
+	cudaMemcpy(&final, d_final, size, cudaMemcpyDeviceToHost);
 	if ( out == NULL ) {
 		fprintf(stderr, "FATAL: can not open \"%s\" for writing", outfile);
 		exit(-1);
 	}
+	cur.bmap = final;
 	write_ltl(&cur, out);		
 	fclose(out);	
 	/* Cleanup */
+	cudaFree(d_current); 
 	cudaFree(d_ghost); 
-	cudaFree(d_next); 
+	cudaFree(d_temp);
+	cudaFree(d_final);
 	free(cur.bmap);
-	free(ghost);
 	return 0;
 }
