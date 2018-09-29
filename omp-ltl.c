@@ -33,7 +33,7 @@ void makeCellAlive( int i, int j, int newWidth, cell_t *temp );
 void makeCellDead( int i, int j, int newWidth, cell_t *temp );
 void write_ltl( bmap_t *ltl, FILE *f );
 void final_map( cell_t *ghost, cell_t *final, int width, int newWidth, int R );
-void count_total_alive_cells( cell_t *final, int width);
+/*void count_total_alive_cells( cell_t *final, int width);*/
 
 /**
  * Read a PBM file from file f. The caller is responsible for passing
@@ -323,8 +323,9 @@ int main( int argc, char* argv[] ) {
 	}	
 	final_map(ghost, final, width, newWidth, R);	
 	tstop = omp_get_wtime();
-	printf("Elapsed time %f\n", tstop - tstart);	
-	count_total_alive_cells(final, width);	
+	printf("Elapsed time %f\n", tstop - tstart);
+	/* Used for testing purpose */	
+	/*count_total_alive_cells(final, width);*/	
 	cur.bmap = final;	
 	if ( out == NULL ) {
 		fprintf(stderr, "FATAL: can not open \"%s\" for writing", outfile);
