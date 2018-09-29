@@ -206,7 +206,7 @@ __global__ void processGeneration( cell_t *ghost, cell_t *next, int B1, int B2, 
 */ 
 	if(!index_cond && neighbors <= B2 && neighbors >= B1) {
 		*MAP(next, width, global_i, global_j, R) = 1;
-	} else if(index_cond && neighbors+1 <= D2 && neighbors+1 >= D1) {
+	} else if(index_cond && neighbors <= D2 && neighbors >= D1) {
 		*MAP(next, width, global_i, global_j, R) = 1;
 	} else {
 		*MAP(next, width, global_i, global_j, R) = 0;
