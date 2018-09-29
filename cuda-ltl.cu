@@ -191,29 +191,17 @@ __global__ void processGeneration( cell_t *ghost, cell_t *next, int B1, int B2, 
 		index_cond = ghost[(newWidth*(global_i + R) + global_j + R)];
 		/* apply rules of the larger than life to cell (i, j) */
 		if (isCellDead(index_cond) && hasEnoughNeighborsToComeToLife(neighbors, B1, B2)) {
-			// makeCellAlive(global_i, global_j, width, R, next);
-			*MAP(next, width, global_i, global_j, R) = 1;			
+			makeCellAlive(global_i, global_j, width, R, next);
+			//*MAP(next, width, global_i, global_j, R) = 1;			
 		} else if (!isCellDead(index_cond) && hasEnoughNeighborsToSurvive(neighbors, D1, D2)) {
-			// makeCellAlive(global_i, global_j, width, R, next);
-			*MAP(next, width, global_i, global_j, R) = 1;
+			 makeCellAlive(global_i, global_j, width, R, next);
+			//*MAP(next, width, global_i, global_j, R) = 1;
 		} else {
-			// makeCellDead(global_i, global_j, width, R, next);
-			*MAP(next, width, global_i, global_j, R) = 0;
+			makeCellDead(global_i, global_j, width, R, next);
+			//*MAP(next, width, global_i, global_j, R) = 0;
 		}
 	}
 
-
-/* 
-	if(!index_cond && neighbors <= B2 && neighbors >= B1) {
-		*MAP(next, width, global_i, global_j, R) = 1;
-	} else if(index_cond && neighbors <= D2 && neighbors >= D1) {
-		*MAP(next, width, global_i, global_j, R) = 1;
-	} else {
-		*MAP(next, width, global_i, global_j, R) = 0;
-	}
-
-    }
-*/
 }
 
 __host__ __device__ int countNeighbors( int i, int j, int R, cell_t *s_grid) {
@@ -246,15 +234,15 @@ __host__ __device__ int hasEnoughNeighborsToSurvive( int neighbors, int D1, int 
 /** 
  * Make the cell alive.
  */
-__host__ __device__ void makeCellAlive( int i, int j, int width, int R, cell_t *next ) { 
-	*MAP(next, width, i, j, R) = 1; 
+__host__ __device__ void makeCellAlive( int global_i, int global_j, int width, int R, cell_t *next ) { 
+	*MAP(next, width, global_i, global_j, R) = 1; 
 }
 
 /**
  * Make the cell dead.
  */
-__host__ __device__ void makeCellDead( int i, int j, int width, int R, cell_t *next ) {
-	*MAP(next, width, i, j, R) = 0;
+__host__ __device__ void makeCellDead( int global_i, int global_j, int width, int R, cell_t *next ) {
+	*MAP(next, width, global_i, global_j, R) = 0;
 }
 
 /**
