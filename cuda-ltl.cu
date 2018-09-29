@@ -40,7 +40,7 @@ int hasEnoughNeighborsToComeToLife( int neighbors, int B1, int B2 );
 int hasEnoughNeighborsToSurvive( int neighbors, int D1, int D2 );
 void makeCellAlive( int i, int j, int width, int R, cell_t *next );
 void makeCellDead( int i, int j, int width, int R, cell_t *next );
-void write_ltl( bmap_t *ltl, FILE *f ); 
+void write_ltl( cell_t *ltl, FILE *f, int width, int newWIdth, int R ); 
 
 /**
  * Read a PBM file from file f. The caller is responsible for passing
@@ -239,16 +239,16 @@ __host__ __device__ void makeCellDead( int i, int j, int width, int R, cell_t *n
  * file f in PBM format. The caller is responsible for passing a
  * pointer f to a file opened for writing
  */
-void write_ltl( bmap_t *ltl, FILE *f ) {
+void write_ltl( cell_t *ltl, FILE *f, int width, int newWidth, int R ) {
 	int i, j;
-	const int n = ltl->n;
+	const int n = width;
 	
 	fprintf(f, "P1\n");
 	fprintf(f, "# produced by ltl\n");
 	fprintf(f, "%d %d\n", n, n);
 	for (i=0; i<n; i++) {
 		for (j=0; j<n; j++) {
-			fprintf(f, "%d ", *IDX(ltl->bmap, n, i, j));
+			fprintf(f, "%d ", ltl[newWidth*(R + i) + R + j]);
 		}
 		fprintf(f, "\n");
 	}
@@ -361,7 +361,7 @@ int main( int argc, char* argv[] ) {
 		fprintf(stderr, "FATAL: can not open \"%s\" for writing", outfile);
 		exit(-1);
 	}
-	write_ltl(&cur, out);		
+	write_ltl(ghost, out, width, newWidth, R);		
 	fclose(out);	
 	/* Cleanup */
 	cudaFree(d_ghost); 
