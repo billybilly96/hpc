@@ -55,7 +55,7 @@ __host__ __device__ int hasEnoughNeighborsToComeToLife( int neighbors, int B1, i
  * Check if an alive cell has enough neighbors to survive.
  */
 __host__ __device__ int hasEnoughNeighborsToSurvive( int neighbors, int D1, int D2 ) {
-	return (neighbors <= D2 && neighbors >= D1);	
+	return (neighbors+1 <= D2 && neighbors+1 >= D1);	
 }
 
 /** 
