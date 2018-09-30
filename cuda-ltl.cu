@@ -76,11 +76,6 @@ void read_ltl( bmap_t *ltl, FILE* f );
 void init_map( cell_t *ghost, cell_t *current, int width, int newWidth, int R );
 void fill_ghosts_cell( cell_t *ghost, int width, int newWidth, int R );
 void processGeneration( int width, int newWidth, cell_t *ghost, int B1, int B2, int D1, int D2, int R, cell_t *temp );
-int isCellDead( int index_cond );
-int hasEnoughNeighborsToComeToLife( int neighbors, int B1, int B2 );
-int hasEnoughNeighborsToSurvive( int neighbors, int D1, int D2 );
-void makeCellAlive( int i, int j, int width, int R, cell_t *next );
-void makeCellDead( int i, int j, int width, int R, cell_t *next );
 void write_ltl( cell_t *ltl, FILE *f, int width, int newWIdth, int R ); 
 
 /**
