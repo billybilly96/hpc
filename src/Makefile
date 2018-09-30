@@ -10,7 +10,7 @@
 EXE_OMP:=$(basename $(wildcard omp-*.c))
 EXE_MPI:=$(basename $(wildcard mpi-*.c))
 EXE_CUDA:=$(basename $(wildcard cuda-*.cu))
-EXE_SERIAL:=gen-input
+EXE_SERIAL:=ltl-skel gen-input
 EXE:=$(EXE_OMP) $(EXE_MPI) $(EXE_SERIAL) $(EXE_CUDA)
 CFLAGS+=-std=c99 -Wall -Wpedantic
 NVCC?=nvcc

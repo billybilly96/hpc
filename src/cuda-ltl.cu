@@ -1,10 +1,11 @@
-/*
+/*****************************************************************************************************************************************
  * Cognome: Ragazzi
  * Nome: Luca
- * Matricola: 0000 753758
- * 
- * This version of Larger than Life is implemented in CUDA and uses dynamic shared memory and should work correctly with any domain size. 
- */
+ * Matricola: 0000753758
+ * ---------------------------------------------------------------------------------------------------------------------------------------
+ * This version of Larger than Life is implemented in CUDA and uses dynamic shared memory and should work correctly with any domain size.
+ * --------------------------------------------------------------------------------------------------------------------------------------- 
+ *****************************************************************************************************************************************/
 #include "hpc.h"
 #include <stdio.h>
 #include <stdlib.h>
