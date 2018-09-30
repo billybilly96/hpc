@@ -37,6 +37,41 @@ __host__ __device__ cell_t* MAP(cell_t *bmap, int width, int i, int j, int R){
 	return bmap + (i+R)*(width + 2*R) + j + R;
 }
 
+/**
+ * Check if cell is 0.
+ */
+__host__ __device__ int isCellDead(int cell_cond) { 
+	return cell_cond == 0;
+}
+
+/**
+ * Check if a dead cell has enough neighbors to come to life. 
+ */
+__host__ __device__ int hasEnoughNeighborsToComeToLife( int neighbors, int B1, int B2 ) { 
+	return (neighbors <= B2 && neighbors >= B1); 
+}
+
+/** 
+ * Check if an alive cell has enough neighbors to survive.
+ */
+__host__ __device__ int hasEnoughNeighborsToSurvive( int neighbors, int D1, int D2 ) {
+	return (neighbors <= D2 && neighbors >= D1);	
+}
+
+/** 
+ * Make the cell alive.
+ */
+__host__ __device__ void makeCellAlive( int global_i, int global_j, int width, int R, cell_t *next ) { 
+	*MAP(next, width, global_i, global_j, R) = 1; 
+}
+
+/**
+ * Make the cell dead.
+ */
+__host__ __device__ void makeCellDead( int global_i, int global_j, int width, int R, cell_t *next ) {
+	*MAP(next, width, global_i, global_j, R) = 0;
+}
+
 void read_ltl( bmap_t *ltl, FILE* f );
 void init_map( cell_t *ghost, cell_t *current, int width, int newWidth, int R );
 void fill_ghosts_cell( cell_t *ghost, int width, int newWidth, int R );
@@ -329,39 +364,4 @@ int main( int argc, char* argv[] ) {
 	free(cur.bmap);
 	free(ghost);
 	return 0;
-}
-
-/**
- * Check if cell is 0.
- */
- __device__ int isCellDead(int cell_cond) { 
-	return cell_cond == 0;
-}
-
-/**
- * Check if a dead cell has enough neighbors to come to life. 
- */
- __device__ int hasEnoughNeighborsToComeToLife( int neighbors, int B1, int B2 ) { 
-	return (neighbors <= B2 && neighbors >= B1); 
-}
-
-/** 
- * Check if an alive cell has enough neighbors to survive.
- */
- __device__ int hasEnoughNeighborsToSurvive( int neighbors, int D1, int D2 ) {
-	return (neighbors <= D2 && neighbors >= D1);	
-}
-
-/** 
- * Make the cell alive.
- */
- __device__ void makeCellAlive( int global_i, int global_j, int width, int R, cell_t *next ) { 
-	*MAP(next, width, global_i, global_j, R) = 1; 
-}
-
-/**
- * Make the cell dead.
- */
- __device__ void makeCellDead( int global_i, int global_j, int width, int R, cell_t *next ) {
-	*MAP(next, width, global_i, global_j, R) = 0;
 }
